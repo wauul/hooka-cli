@@ -12,13 +12,13 @@ export function colored(value: string) {
 }
 export function endpointTable(endpoints: Endpoint[]) {
   if (!endpoints.length) return "No endpoints yet. Run `hooka endpoints add <url>`.";
-  const table = new Table({ head: ["ID", "URL", "Circuit", "Success (24h)"], wordWrap: true });
+  const table = new Table({ head: ["ID", "URL", "Circuit", "Success (24h)"], style: { head: [], border: [] }, wordWrap: true });
   endpoints.forEach(ep => table.push([safe(ep.id), safe(ep.url), colored(ep.circuitState), ep.successRate === null ? "—" : `${ep.successRate}%`]));
   return table.toString();
 }
 export function statusTable(value: EventStatus) {
   if (!value.deliveries.length) return "No matching endpoints; no deliveries were queued.";
-  const table = new Table({ head: ["Endpoint", "Status", "Attempts", "Final result"] });
+  const table = new Table({ head: ["Endpoint", "Status", "Attempts", "Final result"], style: { head: [], border: [] } });
   value.deliveries.forEach(d => table.push([safe(d.endpoint.url), colored(d.status), d.attempts, safe(d.lastAttempt?.httpStatusCode ?? d.lastAttempt?.error ?? d.lastAttempt?.status ?? "Waiting")]));
   return table.toString();
 }

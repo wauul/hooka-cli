@@ -24,7 +24,22 @@ jobs:
       - name: Check tag matches package version
         run: node -e 'if(process.env.GITHUB_REF_NAME !== "v" + require("./package.json").version) throw new Error("Tag/version mismatch")'
       - run: npm run check
+      - name: Check whether this version was already released
+        id: registry
+        # Supports reruns and the v1.0.0 tag after the authenticated bootstrap.
+        # A network failure is not mistaken for an unpublished version.
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const pkg = JSON.parse(fs.readFileSync("package.json"));
+            const response = await fetch(`https://registry.npmjs.org/${pkg.name}/${pkg.version}`);
+            if (!response.ok && response.status !== 404) throw new Error(`Registry HTTP ${response.status}`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `exists=${response.ok}\n`);
+          '
       - name: Publish public package with provenance
         # npm trusted publishing authenticates this exact repo/workflow using OIDC.
         # No long-lived NPM_TOKEN or paid service is required.
+        if: steps.registry.outputs.exists != 'true'
         run: npm publish --access public --provenance
+      - name: Verify registry release
+        run: npm view "hooka-relay-cli@$(node -p 'require("./package.json").version')" version dist.integrity

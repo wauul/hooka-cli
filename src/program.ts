@@ -31,7 +31,7 @@ export function createProgram(dependencies: Dependencies = {}) {
   const help = (command: Command, examples: string) => command.addHelpText("after", `\nExamples:\n${examples}\n`);
   async function follow(client: Api, id: string, options: { wait?: boolean; interval: number; timeout: number }, generation?: number) {
     if (options.wait === false) return;
-    const spinner = ora({ text: "Waiting for delivery attempts…", isEnabled: !!process.stderr.isTTY }).start();
+    const spinner = ora({ text: "Waiting for delivery attempts…", isEnabled: !!process.stderr.isTTY, isSilent: !process.stderr.isTTY }).start();
     let previous = "";
     try {
       const status = await waitForEvent(client, id, { signal, interval: options.interval * 1000, timeout: options.timeout * 1000, generation,
@@ -108,7 +108,7 @@ export function createProgram(dependencies: Dependencies = {}) {
     }), "  hooka tail\n  hooka tail --endpoint cl_example\n  hooka tail --once");
   help(waiting(program.command("replay <eventId>").description("Replay an event to its original endpoints and follow the new run"))
     .action(async (eventId, options) => {
-      const client = await api(); const spinner = ora({ text: "Queuing replay…", isEnabled: !!process.stderr.isTTY }).start();
+      const client = await api(); const spinner = ora({ text: "Queuing replay…", isEnabled: !!process.stderr.isTTY, isSilent: !process.stderr.isTTY }).start();
       let result;
       try { result = await client.replay(eventId); } finally { spinner.stop(); }
       log(`Replay queued: ${safe(result.eventId)} (generation ${result.generation}, ${result.queued} endpoints)`);

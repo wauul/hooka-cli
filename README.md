@@ -1,5 +1,7 @@
 # Hooka CLI
 
+[![CI](https://github.com/wauul/hooka-cli/workflows/CI/badge.svg)](https://github.com/wauul/hooka-cli/actions/workflows/ci.yml)
+
 The terminal companion to [Hooka Relay](https://github.com/wauul/hooka-relay), a webhook delivery service with durable queues, retry delays, circuit breakers and HMAC signatures. Package: **hooka-relay-cli**. Command: **hooka**.
 
 ## Why I built this
@@ -108,7 +110,7 @@ npm version patch
 git push origin main --follow-tags
 ```
 
-The workflow checks that the tag and package version agree. npm versions are immutable; publish a new version for subsequent fixes. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) for account-side setup.
+The workflow checks that the tag and package version agree. A rerun of an already published version verifies its registry entry and skips republishing; this also supports the initial v1.0.0 tag after the authenticated bootstrap. npm versions are immutable; publish a new version for subsequent fixes. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) for account-side setup.
 
 ## License
 
