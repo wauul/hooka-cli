@@ -1,0 +1,30 @@
+name: Publish npm package
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - name: Use npm with OIDC support
+        run: npm install -g npm@11.11.0
+      - run: npm ci
+      - name: Check tag matches package version
+        run: node -e 'if(process.env.GITHUB_REF_NAME !== "v" + require("./package.json").version) throw new Error("Tag/version mismatch")'
+      - run: npm run check
+      - name: Publish public package with provenance
+        # npm trusted publishing authenticates this exact repo/workflow using OIDC.
+        # No long-lived NPM_TOKEN or paid service is required.
+        run: npm publish --access public --provenance
