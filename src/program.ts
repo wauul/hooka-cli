@@ -7,6 +7,8 @@ import { endpointTable, statusTable, attemptLine, safe } from "./output";
 import { waitForEvent, tailAttempts } from "./poll";
 import { prompt } from "./prompt";
 import { version } from "../package.json";
+import { openBrowser } from "./browser";
+import { verifyLegacy, verifyStandard } from "./signatures";
 
 function positive(value: string) {
   const n = Number(value);
@@ -21,7 +23,7 @@ function timeout(value: string) {
 export function parsePayload(value: string) {
   try { return JSON.parse(value) as unknown; } catch { throw new Error("Malformed JSON payload. Use valid JSON, for example '{\"orderId\":123}'."); }
 }
-export interface Dependencies { signal?: AbortSignal; log?: (message: string) => void; ask?: typeof prompt }
+export interface Dependencies { signal?: AbortSignal; log?: (message: string) => void; ask?: typeof prompt; open?: typeof openBrowser }
 export function createProgram(dependencies: Dependencies = {}) {
   const signal = dependencies.signal || new AbortController().signal;
   const log = dependencies.log || console.log;
@@ -29,6 +31,21 @@ export function createProgram(dependencies: Dependencies = {}) {
   const program = new Command().name("hooka").description("Your terminal companion for Hooka Relay webhooks").version(version).showHelpAfterError();
   const api = async () => new Api(await loadConfig(), signal);
   const help = (command: Command, examples: string) => command.addHelpText("after", `\nExamples:\n${examples}\n`);
+  program.command("docs").description("Open the interactive API reference").option("--base-url <url>", "Deployment URL").action(async options => {
+    let base = options.baseUrl || process.env.HOOKA_BASE_URL;
+    if (!base) { try { base = (await loadConfig()).baseUrl; } catch (error) { if (!(error instanceof Error) || !error.message.startsWith("Not logged in")) throw error; base = DEFAULT_URL; } }
+    const url = normalizeUrl(base) + "/docs#api-reference";
+    log(url); await (dependencies.open || openBrowser)(url).catch(() => log("Open the URL above in your browser."));
+  });
+  program.command("verify").description("Verify a captured webhook locally without sending secrets").requiredOption("--payload-file <file>", "Exact raw request body").requiredOption("--headers-file <file>", "JSON object containing request headers").option("--legacy", "Verify historical X-Webhook-Signature format").action(async options => {
+    const raw = await readFile(options.payloadFile);
+    const headers = JSON.parse(await readFile(options.headersFile, "utf8"));
+    const secret = process.env.HOOKA_SIGNING_SECRET || await ask("Signing secret", undefined, true, signal);
+    const normalized = Object.fromEntries(Object.entries(headers).map(([k,v]) => { if (typeof v !== "string") throw new Error("Header values must be strings"); return [k.toLowerCase(), v]; }));
+    if (options.legacy) { if (!verifyLegacy(raw, normalized["x-webhook-signature"] || "", secret)) throw new Error("Invalid legacy signature or timestamp"); }
+    else verifyStandard(raw, normalized, secret);
+    log(options.legacy ? "Legacy signature verified (event ID is not signed)." : `Standard Webhooks signature verified. Signed event ID: ${safe(normalized["webhook-id"])}`);
+  });
   async function follow(client: Api, id: string, options: { wait?: boolean; interval: number; timeout: number }, generation?: number) {
     if (options.wait === false) return;
     const spinner = ora({ text: "Waiting for delivery attempts…", isEnabled: !!process.stderr.isTTY, isSilent: !process.stderr.isTTY }).start();
@@ -83,19 +100,37 @@ export function createProgram(dependencies: Dependencies = {}) {
       const payload = parsePayload(raw.replace(/^\uFEFF/, ""));
       if (Buffer.byteLength(JSON.stringify({ type, payload, idempotencyKey: options.idempotencyKey })) > 262144) throw new Error("Event exceeds the API's 256 KB limit.");
       const client = await api(); const event = await client.send(type, payload, options.idempotencyKey);
-      log(`Event accepted: ${safe(event.id)}\nIdempotency key: ${safe(event.idempotencyKey)}`);
+      log(`Event accepted: ${safe(event.id)}\nIdempotency key: ${safe(event.idempotencyKey)}\nStandard Webhooks ID: ${safe(event.id)}`);
       await follow(client, event.id, options, 0);
     }), "  hooka send --type order.shipped --payload '{\"orderId\":123}'\n  hooka send --type order.shipped --payload-file payload.json\n  hooka send");
   const endpoints = help(program.command("endpoints").description("Inspect and register application webhook endpoints"), "  hooka endpoints list\n  hooka endpoints add https://example.com/webhook --events order.shipped");
+  program.command("backlog").description("Pull a page of missed events").option("--since <timestamp-or-id>").option("--endpoint <id>").option("--cursor <cursor>").option("--limit <number>", "Page size, 1–100", "50").action(async options => {
+    const client = await api(), { application } = await client.me();
+    const query = new URLSearchParams({ limit: options.limit });
+    for (const [name, value] of [["since", options.since], ["endpoint_id", options.endpoint], ["cursor", options.cursor]]) if (value) query.set(name, value);
+    log(safe(JSON.stringify(await client.request(`applications/${encodeURIComponent(application.id)}/events?${query}`), null, 2)));
+  });
+  program.command("recover").description("Queue paced bulk recovery of failed deliveries").requiredOption("--since <timestamp>", "ISO timestamp").option("--endpoint <id>").action(async options => {
+    const client = await api(), { application } = await client.me();
+    log(safe(JSON.stringify(await client.request(`applications/${encodeURIComponent(application.id)}/recovery`, { since: options.since, endpointId: options.endpoint }))));
+  });
+  const catalog = program.command("event-types").description("Versioned application event catalog");
+  catalog.command("list").action(async () => { const client = await api(), { application } = await client.me(); log(safe(JSON.stringify(await client.request(`applications/${encodeURIComponent(application.id)}/event-types`)))); });
+  catalog.command("publish <file>").description("Publish JSON {eventType,description,schema?}").action(async file => { const input = parsePayload(await readFile(file, "utf8")); const client = await api(), { application } = await client.me(); log(safe(JSON.stringify(await client.request(`applications/${encodeURIComponent(application.id)}/event-types`, input)))); });
+  for (const action of ["pause", "resume"] as const) endpoints.command(`${action} <id>`).description(`${action} endpoint delivery`).action(async id => { const state = await (await api()).endpointState(id, action); log(`${safe(state.id)}: ${safe(state.status)} (${safe(state.environment)})`); if (action === "resume") log("Events missed while paused require explicit replay."); });
+  endpoints.command("configure <id>").description("Update environment, kind, headers, throttle or transform from JSON").requiredOption("--file <file>", "Endpoint configuration JSON").action(async (id, options) => { await (await api()).configureEndpoint(id, parsePayload(await readFile(options.file, "utf8"))); log("Endpoint configuration updated."); });
+  endpoints.command("rotate-secret <id>").description("Rotate signing secret with seven-day grace by default").action(async id => { const result = await (await api()).rotateSecret(id); log(`New signing secret: ${safe(result.secret)}\nOld secret remains valid until ${safe(result.previousSecretExpiresAt)}. Update your receiver before then.`); });
+  endpoints.command("signature-format <id> <format>").description("Explicitly migrate STANDARD or retain LEGACY signing").action(async (id, format) => { const value = format.toUpperCase(); if (!["STANDARD", "LEGACY"].includes(value)) throw new Error("Use STANDARD or LEGACY"); await (await api()).signatureFormat(id, value); log(`Signing format: ${value}`); });
   help(endpoints.command("list").description("List endpoints, circuit states and 24-hour success rates").action(async () => {
     log(endpointTable((await (await api()).endpoints()).endpoints));
   }), "  hooka endpoints list");
   help(endpoints.command("add <url>").description("Register an endpoint and display its signing secret")
     .option("--events <types>", "Comma-separated event types, or * for all", "*")
+    .option("--environment <name>", "Freeform environment label")
     .action(async (url, options) => {
       const eventTypes = [...new Set<string>(options.events.split(",").map((s: string) => s.trim()))];
       if (!eventTypes.length || eventTypes.some(type => !/^(\*|[A-Za-z0-9_.:-]{1,120})$/.test(type))) throw new Error("--events must contain comma-separated event types, or *.");
-      const { endpoint } = await (await api()).addEndpoint(url, eventTypes);
+      const { endpoint } = await (await api()).addEndpoint(url, eventTypes, options.environment ? { environment: options.environment } : {});
       log(`Endpoint created: ${safe(endpoint.id)}\nURL: ${safe(endpoint.url)}\nSigning secret: ${safe(endpoint.secret)}\nSave this secret for HMAC verification. Treat it as a password.`);
     }), "  hooka endpoints add https://example.com/webhook --events order.shipped,order.cancelled\n  hooka endpoints add https://hooka-relay.vercel.app/api/fake-receiver/succeed --events '*'");
   help(program.command("tail").description("Poll delivery attempts and print new entries (Ctrl+C stops)")
@@ -103,14 +138,14 @@ export function createProgram(dependencies: Dependencies = {}) {
     .option("--interval <seconds>", "Polling interval", positive, 1.5)
     .option("--once", "Print the most recent page and exit")
     .action(async options => {
-      log("Timestamp  Event type  Endpoint  Status  HTTP  Duration  Attempt ID");
+      log("Timestamp  Event type  Endpoint  Endpoint status  Environment  Delivery status  HTTP  Duration  Attempt ID");
       await tailAttempts(await api(), { signal, interval: options.interval * 1000, endpoint: options.endpoint, once: options.once, print: attempt => log(attemptLine(attempt)) });
     }), "  hooka tail\n  hooka tail --endpoint cl_example\n  hooka tail --once");
-  help(waiting(program.command("replay <eventId>").description("Replay an event to its original endpoints and follow the new run"))
+  help(waiting(program.command("replay <eventId>").description("Replay an event to active matching endpoints and follow the new run").option("--endpoint <id>", "Replay only to this matching endpoint"))
     .action(async (eventId, options) => {
       const client = await api(); const spinner = ora({ text: "Queuing replay…", isEnabled: !!process.stderr.isTTY, isSilent: !process.stderr.isTTY }).start();
       let result;
-      try { result = await client.replay(eventId); } finally { spinner.stop(); }
+      try { result = await client.replay(eventId, options.endpoint); } finally { spinner.stop(); }
       log(`Replay queued: ${safe(result.eventId)} (generation ${result.generation}, ${result.queued} endpoints)`);
       await follow(client, result.eventId, options, result.generation);
     }), "  hooka replay cl_event_id\n  hooka replay cl_event_id --no-wait");

@@ -115,3 +115,29 @@ The workflow checks that the tag and package version agree. A rerun of an alread
 ## License
 
 MIT. See [LICENSE](LICENSE).
+## Version 2: lifecycle and Standard Webhooks
+
+New endpoints use Standard Webhooks: `webhook-id` is the stable event ID, and `webhook-timestamp` plus the raw body are signed in `webhook-signature`. Existing endpoints stay LEGACY until explicitly migrated. Prepare your receiver before switching:
+
+```sh
+hooka endpoints signature-format ENDPOINT_ID STANDARD
+hooka endpoints rotate-secret ENDPOINT_ID
+hooka endpoints pause ENDPOINT_ID
+hooka endpoints resume ENDPOINT_ID
+hooka endpoints add https://example.com/webhook --environment staging
+hooka endpoints configure ENDPOINT_ID --file endpoint-config.json
+hooka backlog --since 2026-09-01T00:00:00Z --endpoint ENDPOINT_ID
+hooka recover --since 2026-09-01T00:00:00Z --endpoint ENDPOINT_ID
+hooka replay EVENT_ID --endpoint ENDPOINT_ID
+hooka event-types list
+hooka event-types publish event-type.json
+hooka docs
+```
+
+Signing rotation prints the new secret and old-secret expiry (seven-day grace by default). During grace either key verifies. Another rotation during grace returns 409. `configure` accepts environment, kind (`BUSINESS`/`OPERATIONAL`), customHeaders, deliveryRatePerMinute and transform; omit fields to retain their values. Headers and transform are validated server-side. See the [interactive API reference](https://hooka-relay.vercel.app/docs#api-reference) for exact schemas and limits.
+
+`PAUSED` stops new delivery intents and attempts; resume does not backfill missed events. `DISABLED` exposes the open circuit while automatic recovery probes remain intact. Backlog is paginated; use `--cursor` from `nextCursor`. Bulk recovery creates a durable paced job for latest failed deliveries. Events are not ordered across retries.
+
+To verify a captured request locally, set `HOOKA_SIGNING_SECRET` and run `hooka verify --payload-file body.json --headers-file headers.json`. Pass exact raw bytes, not reserialized JSON. Use `--legacy` for historical signatures. Standard verification uses the official reference library, authenticates the event ID and checks the five-minute timestamp window. Verification never sends the secret to Hooka Relay. Deduplicate verified IDs with business changes.
+
+Read-only keys support inspection. Ingest-only keys deliberately cannot call `whoami` or poll delivery logs: set `HOOKA_API_KEY` and use `hooka send --no-wait`. Manage endpoints, replay, catalog or recovery with an existing unscoped application key. Scoped-key creation/revocation remains in the dashboard. API keys never appear in the docs URL.

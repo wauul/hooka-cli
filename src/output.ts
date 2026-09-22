@@ -12,8 +12,8 @@ export function colored(value: string) {
 }
 export function endpointTable(endpoints: Endpoint[]) {
   if (!endpoints.length) return "No endpoints yet. Run `hooka endpoints add <url>`.";
-  const table = new Table({ head: ["ID", "URL", "Circuit", "Success (24h)"], style: { head: [], border: [] }, wordWrap: true });
-  endpoints.forEach(ep => table.push([safe(ep.id), safe(ep.url), colored(ep.circuitState), ep.successRate === null ? "—" : `${ep.successRate}%`]));
+  const table = new Table({ head: ["ID", "URL", "Status", "Environment", "Circuit", "Success (24h)"], style: { head: [], border: [] }, wordWrap: true });
+  endpoints.forEach(ep => table.push([safe(ep.id), safe(ep.url), safe(ep.status), safe(ep.environment), colored(ep.circuitState), ep.successRate === null ? "—" : `${ep.successRate}%`]));
   return table.toString();
 }
 export function statusTable(value: EventStatus) {
@@ -22,4 +22,4 @@ export function statusTable(value: EventStatus) {
   value.deliveries.forEach(d => table.push([safe(d.endpoint.url), colored(d.status), d.attempts, safe(d.lastAttempt?.httpStatusCode ?? d.lastAttempt?.error ?? d.lastAttempt?.status ?? "Waiting")]));
   return table.toString();
 }
-export function attemptLine(a: Attempt) { return [safe(a.createdAt), safe(a.event.type), safe(a.endpoint.url), colored(a.status), `HTTP ${a.httpStatusCode ?? "—"}`, `${a.durationMs ?? "—"}ms`, safe(a.id)].join("  "); }
+export function attemptLine(a: Attempt) { return [safe(a.createdAt), safe(a.event.type), safe(a.endpoint.url), safe(a.endpoint.status), safe(a.endpoint.environment), colored(a.status), `HTTP ${a.httpStatusCode ?? "—"}`, `${a.durationMs ?? "—"}ms`, safe(a.id)].join("  "); }
