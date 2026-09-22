@@ -1,0 +1,11 @@
+# Changelog
+
+## 2.0.0
+
+- New endpoints default to Standard Webhooks. Existing endpoints retain LEGACY until explicitly migrated; `verify` supports both formats.
+- Add endpoint pause/resume, configuration, signing-secret rotation and signing-format commands.
+- Add backlog, paced bulk recovery and versioned event catalog commands.
+- Show endpoint status/environment in endpoint lists and delivery tails; support targeted replay.
+- Add `hooka docs` for interactive API documentation. Explain scoped-key permission failures without treating every 403 as an expired key.
+
+The major version reflects the changed signing default for newly registered endpoints. Existing saved configurations, event IDs, idempotency behavior, retry scheduling and legacy receivers remain compatible.
