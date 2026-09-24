@@ -9,6 +9,7 @@ import { prompt } from "./prompt";
 import { version } from "../package.json";
 import { openBrowser } from "./browser";
 import { verifyLegacy, verifyStandard } from "./signatures";
+import { listen } from "./listen";
 
 function positive(value: string) {
   const n = Number(value);
@@ -141,6 +142,15 @@ export function createProgram(dependencies: Dependencies = {}) {
       log("Timestamp  Event type  Endpoint  Endpoint status  Environment  Delivery status  HTTP  Duration  Attempt ID");
       await tailAttempts(await api(), { signal, interval: options.interval * 1000, endpoint: options.endpoint, once: options.once, print: attempt => log(attemptLine(attempt)) });
     }), "  hooka tail\n  hooka tail --endpoint cl_example\n  hooka tail --once");
+  help(program.command("listen").description("Forward verified inbound webhooks to a local server")
+    .requiredOption("--source <id-or-name>", "Webhook source ID or unambiguous name")
+    .requiredOption("--forward-to <local-url>", "Localhost HTTP(S) destination")
+    .option("--tunnel-url <ws-url>", "Override the live relay URL for local testing")
+    .action(async options => {
+      const config = await loadConfig();
+      await listen(new Api(config, signal), options.source, options.forwardTo, { signal, log, tunnelUrl: options.tunnelUrl });
+      log("Live forwarding stopped.");
+    }), "  hooka listen --source stripe-dev --forward-to http://localhost:3000/webhooks\n  hooka listen --source cl_source_id --forward-to http://127.0.0.1:3000/webhooks");
   help(waiting(program.command("replay <eventId>").description("Replay an event to active matching endpoints and follow the new run").option("--endpoint <id>", "Replay only to this matching endpoint"))
     .action(async (eventId, options) => {
       const client = await api(); const spinner = ora({ text: "Queuing replay…", isEnabled: !!process.stderr.isTTY, isSilent: !process.stderr.isTTY }).start();

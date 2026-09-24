@@ -54,6 +54,7 @@ Every command has `--help` with examples. `hooka help send` also works.
 | `hooka endpoints add URL --events TYPE,TYPE` | Register endpoint; `--events '*'` matches everything |
 | `hooka tail [--endpoint ID]` | Show recent attempts and continuously poll for new ones |
 | `hooka tail --once` | Show the most recent page and exit |
+| `hooka listen --source SOURCE_ID --forward-to http://localhost:3000/webhooks` | Forward verified provider webhooks to a local server live |
 | `hooka replay EVENT_ID` | Queue a new delivery generation and follow it |
 | `hooka fake-receiver MODE` | Print the succeed/fail/hang/flaky receiver URL |
 | `hooka --version` | Print the installed package version |
@@ -61,6 +62,18 @@ Every command has `--help` with examples. `hooka help send` also works.
 `send` accepts `--idempotency-key KEY` for safe retries of event submission. Reusing a key returns the original event and its original delivery run. `send` and `replay` accept `--no-wait`, `--interval 1.5` and `--timeout SECONDS` (default 0, unlimited). A timeout stops only the local wait. Pending events keep retrying on the server. A final table shows each endpoint's status, attempt count and HTTP/error result. A failed terminal delivery exits with code 1. Cancellation exits cleanly; a cancelled in-flight request returns code 130. No endpoints is a successful accepted event with no queued deliveries.
 
 `replay` follows the generation returned by the server, so an older successful delivery cannot falsely complete a new replay. Circuit skips do not count as HTTP attempts. A null success rate means there were no counted attempts in the last 24 hours. Colors follow `NO_COLOR` and terminal support.
+
+### Receive provider webhooks locally
+
+Create an inbound source in the Hooka dashboard and register its ingestion URL with the provider. The source may have a public destination, a local listener, or both. Then run:
+
+```sh
+hooka listen --source SOURCE_ID --forward-to http://localhost:3000/webhooks
+```
+
+`--source` also accepts a unique source name within the Application. The CLI authenticates with your saved Application API key, opens a WSS connection to Hooka's worker, and forwards each verified request to localhost with its original body bytes and provider signature headers. `Host`, `Content-Length`, and hop-by-hop headers are generated for the local connection. Each line reports event type, local HTTP status or error, and latency. Connection loss triggers backoff and reconnection; Ctrl+C closes the session. A stopped local server produces an error for that event while the listener stays open. Open the source event log in the dashboard to inspect failed requests or replay a saved verified request.
+
+Self-hosted deployments can override the relay advertised by the API with `--tunnel-url wss://worker.example/live`; `ws://` is allowed for localhost only. The web app must publish `TUNNEL_PUBLIC_URL` with that public WSS address.
 
 ## Configuration and security
 
@@ -82,10 +95,11 @@ The companion routes added to Hooka Relay use Application API-key authentication
 | GET | `/api/v1/events/:id?generation=N` |
 | GET | `/api/v1/attempts?endpoint=ID&after=CURSOR` |
 | POST | `/api/v1/events/:id/replay` |
+| GET | `/api/v1/live` (relay discovery) |
 
 `tail` is **polling-based**, not a push stream. It starts with the latest 100 attempts and polls every 1.5 seconds; full cursor pages are drained immediately. Output includes timestamp, event type, endpoint URL, status, HTTP code, duration and attempt ID. The cursor orders by timestamp plus ID, with bounded deduplication in the CLI. A delayed database commit behind the cursor can be missed; this is a developer view, not an authoritative audit export. Network/authentication failures exit clearly so you can reconnect; this version does not silently retry failed POST requests. An SSE feed with durable reconnect cursors is a natural v2 improvement.
 
-The built-in fake receiver URL is informational: registering it is a separate command. This tool does not open a local tunnel or host a receiver. Endpoint mutations and replay require the companion `/api/v1` routes; the older dashboard-only API cannot authenticate those operations with an Application key.
+The built-in fake receiver URL is informational: registering it is a separate command. `listen` forwards over the existing worker connection; it does not expose a local port directly to the public internet. Endpoint mutations and replay require the companion `/api/v1` routes; the older dashboard-only API cannot authenticate those operations with an Application key.
 
 ## Development and tests
 

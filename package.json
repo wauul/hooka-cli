@@ -1,6 +1,6 @@
 {
   "name": "hooka-relay-cli",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Send, inspect, tail and replay webhooks from your terminal with Hooka Relay",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -64,10 +64,12 @@
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
     "ora": "^5.4.1",
-    "standardwebhooks": "1.1.1"
+    "standardwebhooks": "1.1.1",
+    "ws": "8.21.3"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",
+    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.11",
     "tsup": "^8.5.0",
     "typescript": "^5.9.2",

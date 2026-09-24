@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+- Add `hooka listen` to forward verified inbound provider webhooks to localhost over the worker's live WebSocket relay.
+- Preserve provider body bytes and signature headers, report local response status and latency, and reconnect automatically after connection loss.
+- Support source IDs or unique source names and an optional `--tunnel-url` for self-hosted workers.
+
 ## 2.0.0
 
 - New endpoints default to Standard Webhooks. Existing endpoints retain LEGACY until explicitly migrated; `verify` supports both formats.

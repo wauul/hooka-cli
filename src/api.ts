@@ -36,6 +36,7 @@ export class Api {
     } finally { clearTimeout(timer); this.signal?.removeEventListener("abort", abort); }
   }
   me() { return this.request<{ application: Application }>("me"); }
+  live() { return this.request<{ url: string }>("live"); }
   endpoints() { return this.request<{ endpoints: Endpoint[] }>("endpoints"); }
   addEndpoint(url: string, eventTypes: string[], options: Record<string, unknown> = {}) { return this.request<{ endpoint: Endpoint & { secret: string } }>("endpoints", { url, eventTypes, ...options }); }
   endpointState(id: string, action: "pause" | "resume") { return this.request<{ id: string; status: string; environment: string }>(`endpoints/${encodeURIComponent(id)}/${action}`, {}, "PATCH"); }
