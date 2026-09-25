@@ -86,12 +86,14 @@ export function createProgram(dependencies: Dependencies = {}) {
     log(`${safe(application.name)}\nApplication: ${safe(application.id)}\nAPI: ${safe(client.config.baseUrl)}`);
   }), "  hooka whoami");
   help(waiting(program.command("send").description("Send an event and follow its delivery run")
+    .requiredOption("--customer-id <id>", "Customer ID in this application")
     .option("--type <type>", "Event type, such as order.shipped")
     .option("--payload <json>", "Inline JSON payload")
     .option("--payload-file <file>", "Read JSON payload from a file")
     .option("--idempotency-key <key>", "Reuse a key to safely retry event submission"))
     .action(async options => {
       if (options.payload !== undefined && options.payloadFile) throw new Error("Choose either --payload or --payload-file, not both.");
+      if (!options.customerId.trim() || options.customerId.length > 100) throw new Error("--customer-id must contain 1–100 characters.");
       const type = options.type || await ask("Event type", undefined, false, signal);
       if (!/^[A-Za-z0-9_.:-]{1,120}$/.test(type)) throw new Error("Event type must contain 1–120 letters, digits, dots, underscores, colons or hyphens.");
       let raw: string;
@@ -99,12 +101,21 @@ export function createProgram(dependencies: Dependencies = {}) {
         try { raw = await readFile(options.payloadFile, "utf8"); } catch { throw new Error(`Could not read payload file: ${safe(options.payloadFile)}`); }
       } else raw = options.payload ?? await ask("JSON payload", "{}", false, signal);
       const payload = parsePayload(raw.replace(/^\uFEFF/, ""));
-      if (Buffer.byteLength(JSON.stringify({ type, payload, idempotencyKey: options.idempotencyKey })) > 262144) throw new Error("Event exceeds the API's 256 KB limit.");
-      const client = await api(); const event = await client.send(type, payload, options.idempotencyKey);
+      if (Buffer.byteLength(JSON.stringify({ customerId: options.customerId, type, payload, idempotencyKey: options.idempotencyKey })) > 262144) throw new Error("Event exceeds the API's 256 KB limit.");
+      const client = await api(); const event = await client.send(options.customerId, type, payload, options.idempotencyKey);
       log(`Event accepted: ${safe(event.id)}\nIdempotency key: ${safe(event.idempotencyKey)}\nStandard Webhooks ID: ${safe(event.id)}`);
       await follow(client, event.id, options, 0);
-    }), "  hooka send --type order.shipped --payload '{\"orderId\":123}'\n  hooka send --type order.shipped --payload-file payload.json\n  hooka send");
-  const endpoints = help(program.command("endpoints").description("Inspect and register application webhook endpoints"), "  hooka endpoints list\n  hooka endpoints add https://example.com/webhook --events order.shipped");
+    }), "  hooka send --customer-id cus_123 --type order.shipped --payload '{\"orderId\":123}'\n  hooka send --customer-id cus_123 --type order.shipped --payload-file payload.json\n  hooka send --customer-id cus_123");
+  const customers = program.command("customers").description("List and create customers in this application");
+  customers.command("list").description("List customer IDs and names").action(async () => {
+    const client = await api(); const { application } = await client.me();
+    log(safe(JSON.stringify(await client.request(`applications/${encodeURIComponent(application.id)}/customers`), null, 2)));
+  });
+  customers.command("add").description("Create a customer").requiredOption("--external-id <id>", "Your stable customer reference").requiredOption("--name <name>", "Display name").action(async options => {
+    const client = await api(); const { application } = await client.me();
+    log(safe(JSON.stringify(await client.request(`applications/${encodeURIComponent(application.id)}/customers`, { externalId: options.externalId, name: options.name }), null, 2)));
+  });
+  const endpoints = help(program.command("endpoints").description("Inspect and register application webhook endpoints"), "  hooka endpoints list\n  hooka endpoints add https://example.com/webhook --customer-id cus_123 --events order.shipped");
   program.command("backlog").description("Pull a page of missed events").option("--since <timestamp-or-id>").option("--endpoint <id>").option("--cursor <cursor>").option("--limit <number>", "Page size, 1–100", "50").action(async options => {
     const client = await api(), { application } = await client.me();
     const query = new URLSearchParams({ limit: options.limit });
@@ -121,19 +132,20 @@ export function createProgram(dependencies: Dependencies = {}) {
   for (const action of ["pause", "resume"] as const) endpoints.command(`${action} <id>`).description(`${action} endpoint delivery`).action(async id => { const state = await (await api()).endpointState(id, action); log(`${safe(state.id)}: ${safe(state.status)} (${safe(state.environment)})`); if (action === "resume") log("Events missed while paused require explicit replay."); });
   endpoints.command("configure <id>").description("Update environment, kind, headers, throttle or transform from JSON").requiredOption("--file <file>", "Endpoint configuration JSON").action(async (id, options) => { await (await api()).configureEndpoint(id, parsePayload(await readFile(options.file, "utf8"))); log("Endpoint configuration updated."); });
   endpoints.command("rotate-secret <id>").description("Rotate signing secret with seven-day grace by default").action(async id => { const result = await (await api()).rotateSecret(id); log(`New signing secret: ${safe(result.secret)}\nOld secret remains valid until ${safe(result.previousSecretExpiresAt)}. Update your receiver before then.`); });
-  endpoints.command("signature-format <id> <format>").description("Explicitly migrate STANDARD or retain LEGACY signing").action(async (id, format) => { const value = format.toUpperCase(); if (!["STANDARD", "LEGACY"].includes(value)) throw new Error("Use STANDARD or LEGACY"); await (await api()).signatureFormat(id, value); log(`Signing format: ${value}`); });
   help(endpoints.command("list").description("List endpoints, circuit states and 24-hour success rates").action(async () => {
     log(endpointTable((await (await api()).endpoints()).endpoints));
   }), "  hooka endpoints list");
   help(endpoints.command("add <url>").description("Register an endpoint and display its signing secret")
+    .requiredOption("--customer-id <id>", "Customer ID that owns this endpoint")
     .option("--events <types>", "Comma-separated event types, or * for all", "*")
     .option("--environment <name>", "Freeform environment label")
     .action(async (url, options) => {
+      if (!options.customerId.trim() || options.customerId.length > 100) throw new Error("--customer-id must contain 1–100 characters.");
       const eventTypes = [...new Set<string>(options.events.split(",").map((s: string) => s.trim()))];
       if (!eventTypes.length || eventTypes.some(type => !/^(\*|[A-Za-z0-9_.:-]{1,120})$/.test(type))) throw new Error("--events must contain comma-separated event types, or *.");
-      const { endpoint } = await (await api()).addEndpoint(url, eventTypes, options.environment ? { environment: options.environment } : {});
+      const { endpoint } = await (await api()).addEndpoint(url, eventTypes, { customerId: options.customerId, ...(options.environment ? { environment: options.environment } : {}) });
       log(`Endpoint created: ${safe(endpoint.id)}\nURL: ${safe(endpoint.url)}\nSigning secret: ${safe(endpoint.secret)}\nSave this secret for HMAC verification. Treat it as a password.`);
-    }), "  hooka endpoints add https://example.com/webhook --events order.shipped,order.cancelled\n  hooka endpoints add https://hooka-relay.vercel.app/api/fake-receiver/succeed --events '*'");
+    }), "  hooka endpoints add https://example.com/webhook --customer-id cus_123 --events order.shipped,order.cancelled\n  hooka endpoints add https://hooka-relay.vercel.app/api/fake-receiver/succeed --customer-id cus_123 --events '*'");
   help(program.command("tail").description("Poll delivery attempts and print new entries (Ctrl+C stops)")
     .option("--endpoint <id>", "Only show attempts for this endpoint")
     .option("--interval <seconds>", "Polling interval", positive, 1.5)

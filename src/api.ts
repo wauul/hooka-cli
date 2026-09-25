@@ -43,7 +43,7 @@ export class Api {
   configureEndpoint(id: string, options: unknown) { return this.request(`endpoints/${encodeURIComponent(id)}/configuration`, options, "PATCH"); }
   signatureFormat(id: string, signatureFormat: string) { return this.request(`endpoints/${encodeURIComponent(id)}/signature-format`, { signatureFormat }, "PATCH"); }
   rotateSecret(id: string) { return this.request<{ secret: string; previousSecretExpiresAt: string }>(`endpoints/${encodeURIComponent(id)}/rotate-secret`, {}); }
-  send(type: string, payload: unknown, idempotencyKey?: string) { return this.request<Event>("events", { type, payload, idempotencyKey }); }
+  send(customerId: string, type: string, payload: unknown, idempotencyKey?: string) { return this.request<Event>("events", { customerId, type, payload, idempotencyKey }); }
   status(id: string, generation?: number) { return this.request<EventStatus>(`events/${encodeURIComponent(id)}${generation === undefined ? "" : `?generation=${generation}`}`); }
   replay(id: string, endpointId?: string) { return this.request<{ eventId: string; generation: number; queued: number }>(`events/${encodeURIComponent(id)}/replay`, { endpointId }); }
   attempts(endpoint?: string, after?: string | null) {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.0
+
+- Require a customer ID when sending events or registering endpoints, matching Hooka Relay customer isolation.
+- Add `hooka customers list` and `hooka customers add` to create and find customer IDs.
+- Remove the obsolete endpoint signing-format command.
+
 ## 2.1.0
 
 - Add `hooka listen` to forward verified inbound provider webhooks to localhost over the worker's live WebSocket relay.

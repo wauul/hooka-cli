@@ -29,7 +29,7 @@ describe("HTTP client", () => {
     await api.me(); expect(fetcher).toHaveBeenCalledWith("https://example.com/api/v1/me",expect.objectContaining({redirect:"error",headers:expect.objectContaining({Authorization:"Bearer private-key"})}));
   });
   it("preserves payload and idempotency fields",async()=>{
-    const fetcher=vi.fn().mockResolvedValue(Response.json({id:"e"}));await new Api(config,undefined,fetcher).send("order.shipped",null,"key");expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({type:"order.shipped",payload:null,idempotencyKey:"key"});
+    const fetcher=vi.fn().mockResolvedValue(Response.json({id:"e"}));await new Api(config,undefined,fetcher).send("cus_123","order.shipped",null,"key");expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({customerId:"cus_123",type:"order.shipped",payload:null,idempotencyKey:"key"});
   });
   it.each([401,403])("explains HTTP %s without echoing keys",async status=>{const api=new Api(config,undefined,vi.fn().mockResolvedValue(new Response("",{status})));await expect(api.me()).rejects.toThrow("hooka login");});
   it("reports API validation errors",async()=>{const api=new Api(config,undefined,vi.fn().mockResolvedValue(Response.json({error:"invalid type"},{status:400})));await expect(api.me()).rejects.toThrow("invalid type");});

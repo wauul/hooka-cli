@@ -19,14 +19,16 @@ hooka login
 hooka whoami
 ```
 
-Create an Application in the dashboard and copy its API key. `login` prompts for the base URL (default `https://hooka-relay.vercel.app`) and masks the key as you type. It validates the key with `/api/v1/me` before saving `~/.hookarc.json`. A rejected login leaves your previous configuration intact.
+Create an application and customer in the dashboard, then copy the application API key. Pass the customer ID when sending events or adding endpoints. `login` prompts for the base URL (default `https://hooka-relay.vercel.app`) and masks the key as you type. It validates the key with `/api/v1/me` before saving `~/.hookarc.json`. A rejected login leaves your previous configuration intact.
 
 ## Quick start
 
 ```sh
 hooka fake-receiver succeed
-hooka endpoints add https://hooka-relay.vercel.app/api/fake-receiver/succeed --events order.shipped
-hooka send --type order.shipped --payload '{"orderId":123}'
+hooka customers add --external-id demo --name "Demo customer"
+hooka customers list
+hooka endpoints add https://hooka-relay.vercel.app/api/fake-receiver/succeed --customer-id cus_123 --events order.shipped
+hooka send --customer-id cus_123 --type order.shipped --payload '{"orderId":123}'
 hooka endpoints list
 hooka tail
 # Ctrl+C exits tail; accepted deliveries continue on the server.
@@ -35,7 +37,7 @@ hooka tail
 When registering an endpoint, save the printed signing secret for HMAC verification. It is not included in endpoint list responses. Prefer `--payload-file` when shell quoting is inconvenient, especially on Windows:
 
 ```sh
-hooka send --type order.shipped --payload-file payload.json
+hooka send --customer-id cus_123 --type order.shipped --payload-file payload.json
 ```
 
 ## Command reference
@@ -47,11 +49,13 @@ Every command has `--help` with examples. `hooka help send` also works.
 | `hooka login [--base-url URL]` | Validate and save an Application API key |
 | `hooka logout` | Delete saved credentials |
 | `hooka whoami` | Show current Application ID, name and API URL |
-| `hooka send --type TYPE --payload JSON` | Send an event and wait for delivery results |
-| `hooka send --type TYPE --payload-file FILE` | Read a JSON payload from disk |
-| `hooka send` | Prompt for type and JSON payload |
+| `hooka send --customer-id ID --type TYPE --payload JSON` | Send an event and wait for delivery results |
+| `hooka send --customer-id ID --type TYPE --payload-file FILE` | Read a JSON payload from disk |
+| `hooka send --customer-id ID` | Prompt for type and JSON payload |
+| `hooka customers list` | List this application’s customers |
+| `hooka customers add --external-id ID --name NAME` | Create a customer |
 | `hooka endpoints list` | Show IDs, URLs, circuit states and 24-hour success rates |
-| `hooka endpoints add URL --events TYPE,TYPE` | Register endpoint; `--events '*'` matches everything |
+| `hooka endpoints add URL --customer-id ID --events TYPE,TYPE` | Register endpoint; `--events '*'` matches everything |
 | `hooka tail [--endpoint ID]` | Show recent attempts and continuously poll for new ones |
 | `hooka tail --once` | Show the most recent page and exit |
 | `hooka listen --source SOURCE_ID --forward-to http://localhost:3000/webhooks` | Forward verified provider webhooks to a local server live |
@@ -59,7 +63,7 @@ Every command has `--help` with examples. `hooka help send` also works.
 | `hooka fake-receiver MODE` | Print the succeed/fail/hang/flaky receiver URL |
 | `hooka --version` | Print the installed package version |
 
-`send` accepts `--idempotency-key KEY` for safe retries of event submission. Reusing a key returns the original event and its original delivery run. `send` and `replay` accept `--no-wait`, `--interval 1.5` and `--timeout SECONDS` (default 0, unlimited). A timeout stops only the local wait. Pending events keep retrying on the server. A final table shows each endpoint's status, attempt count and HTTP/error result. A failed terminal delivery exits with code 1. Cancellation exits cleanly; a cancelled in-flight request returns code 130. No endpoints is a successful accepted event with no queued deliveries.
+`send` requires `--customer-id ID` and accepts `--idempotency-key KEY` for safe retries of event submission. Reusing a key returns the original event and its original delivery run. `send` and `replay` accept `--no-wait`, `--interval 1.5` and `--timeout SECONDS` (default 0, unlimited). A timeout stops only the local wait. Pending events keep retrying on the server. A final table shows each endpoint's status, attempt count and HTTP/error result. A failed terminal delivery exits with code 1. Cancellation exits cleanly; a cancelled in-flight request returns code 130. No endpoints is a successful accepted event with no queued deliveries.
 
 `replay` follows the generation returned by the server, so an older successful delivery cannot falsely complete a new replay. Circuit skips do not count as HTTP attempts. A null success rate means there were no counted attempts in the last 24 hours. Colors follow `NO_COLOR` and terminal support.
 
@@ -131,7 +135,7 @@ The workflow checks that the tag and package version agree. A rerun of an alread
 MIT. See [LICENSE](LICENSE).
 ## Version 2: lifecycle and Standard Webhooks
 
-New endpoints use Standard Webhooks: `webhook-id` is the stable event ID, and `webhook-timestamp` plus the raw body are signed in `webhook-signature`. Existing endpoints stay LEGACY until explicitly migrated. Prepare your receiver before switching:
+New endpoints use Standard Webhooks: `webhook-id` is the stable event ID, and `webhook-timestamp` plus the raw body are signed in `webhook-signature`. Use the endpoint’s displayed `whsec_` secret to verify each delivery:
 
 ```sh
 hooka endpoints signature-format ENDPOINT_ID STANDARD
