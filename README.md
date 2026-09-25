@@ -133,16 +133,15 @@ The workflow checks that the tag and package version agree. A rerun of an alread
 ## License
 
 MIT. See [LICENSE](LICENSE).
-## Version 2: lifecycle and Standard Webhooks
+## Lifecycle and Standard Webhooks
 
 New endpoints use Standard Webhooks: `webhook-id` is the stable event ID, and `webhook-timestamp` plus the raw body are signed in `webhook-signature`. Use the endpoint’s displayed `whsec_` secret to verify each delivery:
 
 ```sh
-hooka endpoints signature-format ENDPOINT_ID STANDARD
 hooka endpoints rotate-secret ENDPOINT_ID
 hooka endpoints pause ENDPOINT_ID
 hooka endpoints resume ENDPOINT_ID
-hooka endpoints add https://example.com/webhook --environment staging
+hooka endpoints add https://example.com/webhook --customer-id cus_123 --environment staging
 hooka endpoints configure ENDPOINT_ID --file endpoint-config.json
 hooka backlog --since 2026-09-01T00:00:00Z --endpoint ENDPOINT_ID
 hooka recover --since 2026-09-01T00:00:00Z --endpoint ENDPOINT_ID
@@ -156,6 +155,6 @@ Signing rotation prints the new secret and old-secret expiry (seven-day grace by
 
 `PAUSED` stops new delivery intents and attempts; resume does not backfill missed events. `DISABLED` exposes the open circuit while automatic recovery probes remain intact. Backlog is paginated; use `--cursor` from `nextCursor`. Bulk recovery creates a durable paced job for latest failed deliveries. Events are not ordered across retries.
 
-To verify a captured request locally, set `HOOKA_SIGNING_SECRET` and run `hooka verify --payload-file body.json --headers-file headers.json`. Pass exact raw bytes, not reserialized JSON. Use `--legacy` for historical signatures. Standard verification uses the official reference library, authenticates the event ID and checks the five-minute timestamp window. Verification never sends the secret to Hooka Relay. Deduplicate verified IDs with business changes.
+To verify a captured request locally, set `HOOKA_SIGNING_SECRET` and run `hooka verify --payload-file body.json --headers-file headers.json`. Pass exact raw bytes, not reserialized JSON. Standard verification uses the official reference library, authenticates the event ID and checks the five-minute timestamp window. Verification never sends the secret to Hooka Relay. Deduplicate verified IDs with business changes.
 
 Read-only keys support inspection. Ingest-only keys deliberately cannot call `whoami` or poll delivery logs: set `HOOKA_API_KEY` and use `hooka send --no-wait`. Manage endpoints, replay, catalog or recovery with an existing unscoped application key. Scoped-key creation/revocation remains in the dashboard. API keys never appear in the docs URL.

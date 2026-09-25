@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.0.1
+
+- Remove the obsolete legacy signature verifier and help text.
+- Correct endpoint examples to require a customer ID.
+
 ## 3.0.0
 
 - Require a customer ID when sending events or registering endpoints, matching Hooka Relay customer isolation.

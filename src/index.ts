@@ -4,4 +4,4 @@ export { createProgram } from "./program";
 export { loadConfig, saveConfig, clearConfig, normalizeUrl, DEFAULT_URL } from "./config";
 export type { Config } from "./config";
 export { waitForEvent, tailAttempts } from "./poll";
-export { verifyStandard, verifyLegacy } from "./signatures";
+export { verifyStandard } from "./signatures";

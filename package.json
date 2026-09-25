@@ -1,6 +1,6 @@
 {
   "name": "hooka-relay-cli",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Send, inspect, tail and replay webhooks from your terminal with Hooka Relay",
   "type": "module",
   "main": "./dist/index.cjs",

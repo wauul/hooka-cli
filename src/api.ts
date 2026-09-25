@@ -41,7 +41,6 @@ export class Api {
   addEndpoint(url: string, eventTypes: string[], options: Record<string, unknown> = {}) { return this.request<{ endpoint: Endpoint & { secret: string } }>("endpoints", { url, eventTypes, ...options }); }
   endpointState(id: string, action: "pause" | "resume") { return this.request<{ id: string; status: string; environment: string }>(`endpoints/${encodeURIComponent(id)}/${action}`, {}, "PATCH"); }
   configureEndpoint(id: string, options: unknown) { return this.request(`endpoints/${encodeURIComponent(id)}/configuration`, options, "PATCH"); }
-  signatureFormat(id: string, signatureFormat: string) { return this.request(`endpoints/${encodeURIComponent(id)}/signature-format`, { signatureFormat }, "PATCH"); }
   rotateSecret(id: string) { return this.request<{ secret: string; previousSecretExpiresAt: string }>(`endpoints/${encodeURIComponent(id)}/rotate-secret`, {}); }
   send(customerId: string, type: string, payload: unknown, idempotencyKey?: string) { return this.request<Event>("events", { customerId, type, payload, idempotencyKey }); }
   status(id: string, generation?: number) { return this.request<EventStatus>(`events/${encodeURIComponent(id)}${generation === undefined ? "" : `?generation=${generation}`}`); }

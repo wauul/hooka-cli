@@ -8,7 +8,7 @@ import { waitForEvent, tailAttempts } from "./poll";
 import { prompt } from "./prompt";
 import { version } from "../package.json";
 import { openBrowser } from "./browser";
-import { verifyLegacy, verifyStandard } from "./signatures";
+import { verifyStandard } from "./signatures";
 import { listen } from "./listen";
 
 function positive(value: string) {
@@ -38,14 +38,13 @@ export function createProgram(dependencies: Dependencies = {}) {
     const url = normalizeUrl(base) + "/docs#api-reference";
     log(url); await (dependencies.open || openBrowser)(url).catch(() => log("Open the URL above in your browser."));
   });
-  program.command("verify").description("Verify a captured webhook locally without sending secrets").requiredOption("--payload-file <file>", "Exact raw request body").requiredOption("--headers-file <file>", "JSON object containing request headers").option("--legacy", "Verify historical X-Webhook-Signature format").action(async options => {
+  program.command("verify").description("Verify a captured webhook locally without sending secrets").requiredOption("--payload-file <file>", "Exact raw request body").requiredOption("--headers-file <file>", "JSON object containing request headers").action(async options => {
     const raw = await readFile(options.payloadFile);
     const headers = JSON.parse(await readFile(options.headersFile, "utf8"));
     const secret = process.env.HOOKA_SIGNING_SECRET || await ask("Signing secret", undefined, true, signal);
     const normalized = Object.fromEntries(Object.entries(headers).map(([k,v]) => { if (typeof v !== "string") throw new Error("Header values must be strings"); return [k.toLowerCase(), v]; }));
-    if (options.legacy) { if (!verifyLegacy(raw, normalized["x-webhook-signature"] || "", secret)) throw new Error("Invalid legacy signature or timestamp"); }
-    else verifyStandard(raw, normalized, secret);
-    log(options.legacy ? "Legacy signature verified (event ID is not signed)." : `Standard Webhooks signature verified. Signed event ID: ${safe(normalized["webhook-id"])}`);
+    verifyStandard(raw, normalized, secret);
+    log(`Standard Webhooks signature verified. Signed event ID: ${safe(normalized["webhook-id"])}`);
   });
   async function follow(client: Api, id: string, options: { wait?: boolean; interval: number; timeout: number }, generation?: number) {
     if (options.wait === false) return;
