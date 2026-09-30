@@ -6,7 +6,7 @@ The terminal companion to [Hooka Relay](https://github.com/wauul/hooka-relay), a
 
 ## Why I built this
 
-Hooka Relay makes webhook delivery reliable; this CLI makes it convenient to develop against. Send a sample event, see its delivery attempts, inspect endpoint health and replay an event without leaving the terminal. The [hosted dashboard](https://hooka-relay.vercel.app) remains available for payload inspection and application administration.
+Hooka Relay makes webhook delivery reliable; this CLI makes it convenient to develop against. Send a sample event, see its delivery attempts, inspect endpoint health and replay an event without leaving the terminal. The [hosted dashboard](https://hooka-relay.com) remains available for payload inspection and application administration.
 
 ## Install
 
@@ -19,7 +19,7 @@ hooka login
 hooka whoami
 ```
 
-Create an application and customer in the dashboard, then copy the application API key. Pass the customer ID when sending events or adding endpoints. `login` prompts for the base URL (default `https://hooka-relay.vercel.app`) and masks the key as you type. It validates the key with `/api/v1/me` before saving `~/.hookarc.json`. A rejected login leaves your previous configuration intact.
+Create an application and customer in the dashboard, then copy the application API key. Pass the customer ID when sending events or adding endpoints. `login` prompts for the base URL (default `https://hooka-relay.com`) and masks the key as you type. It validates the key with `/api/v1/me` before saving `~/.hookarc.json`. A rejected login leaves your previous configuration intact.
 
 ## Quick start
 
@@ -27,7 +27,7 @@ Create an application and customer in the dashboard, then copy the application A
 hooka fake-receiver succeed
 hooka customers add --external-id demo --name "Demo customer"
 hooka customers list
-hooka endpoints add https://hooka-relay.vercel.app/api/fake-receiver/succeed --customer-id cus_123 --events order.shipped
+hooka endpoints add https://hooka-relay.com/api/fake-receiver/succeed --customer-id cus_123 --events order.shipped
 hooka send --customer-id cus_123 --type order.shipped --payload '{"orderId":123}'
 hooka endpoints list
 hooka tail
@@ -151,7 +151,7 @@ hooka event-types publish event-type.json
 hooka docs
 ```
 
-Signing rotation prints the new secret and old-secret expiry (seven-day grace by default). During grace either key verifies. Another rotation during grace returns 409. `configure` accepts environment, kind (`BUSINESS`/`OPERATIONAL`), customHeaders, deliveryRatePerMinute and transform; omit fields to retain their values. Headers and transform are validated server-side. See the [interactive API reference](https://hooka-relay.vercel.app/docs#api-reference) for exact schemas and limits.
+Signing rotation prints the new secret and old-secret expiry (seven-day grace by default). During grace either key verifies. Another rotation during grace returns 409. `configure` accepts environment, kind (`BUSINESS`/`OPERATIONAL`), customHeaders, deliveryRatePerMinute and transform; omit fields to retain their values. Headers and transform are validated server-side. See the [interactive API reference](https://hooka-relay.com/docs#api-reference) for exact schemas and limits.
 
 `PAUSED` stops new delivery intents and attempts; resume does not backfill missed events. `DISABLED` exposes the open circuit while automatic recovery probes remain intact. Backlog is paginated; use `--cursor` from `nextCursor`. Bulk recovery creates a durable paced job for latest failed deliveries. Events are not ordered across retries.
 

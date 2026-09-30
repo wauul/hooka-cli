@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-export const DEFAULT_URL = "https://hooka-relay.vercel.app";
+export const DEFAULT_URL = "https://hooka-relay.com";
 export interface Config { baseUrl: string; apiKey: string }
 export function configPath() { return process.env.HOOKA_CONFIG || join(homedir(), ".hookarc.json"); }
 export function normalizeUrl(input: string) {

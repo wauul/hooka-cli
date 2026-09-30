@@ -144,7 +144,7 @@ export function createProgram(dependencies: Dependencies = {}) {
       if (!eventTypes.length || eventTypes.some(type => !/^(\*|[A-Za-z0-9_.:-]{1,120})$/.test(type))) throw new Error("--events must contain comma-separated event types, or *.");
       const { endpoint } = await (await api()).addEndpoint(url, eventTypes, { customerId: options.customerId, ...(options.environment ? { environment: options.environment } : {}) });
       log(`Endpoint created: ${safe(endpoint.id)}\nURL: ${safe(endpoint.url)}\nSigning secret: ${safe(endpoint.secret)}\nSave this secret for HMAC verification. Treat it as a password.`);
-    }), "  hooka endpoints add https://example.com/webhook --customer-id cus_123 --events order.shipped,order.cancelled\n  hooka endpoints add https://hooka-relay.vercel.app/api/fake-receiver/succeed --customer-id cus_123 --events '*'");
+    }), "  hooka endpoints add https://example.com/webhook --customer-id cus_123 --events order.shipped,order.cancelled\n  hooka endpoints add https://hooka-relay.com/api/fake-receiver/succeed --customer-id cus_123 --events '*'");
   help(program.command("tail").description("Poll delivery attempts and print new entries (Ctrl+C stops)")
     .option("--endpoint <id>", "Only show attempts for this endpoint")
     .option("--interval <seconds>", "Polling interval", positive, 1.5)
